@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<title>CoreXY Aandrijving — Live Visualisatie</title>
+<style>
+:root{
+  --bg:#0b0f14;--surf:#131920;--s2:#1a2130;--bd:#252e3a;
+  --cy:#00c896;--am:#f0a500;--rd:#f85149;--gr:#3fb950;
+  --bl:#6aadff;--pu:#a78bfa;--tx:#dde4ee;--mu:#6b7889;
+  --fn:'JetBrains Mono','Fira Code','Consolas',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font-family:var(--fn);font-size:13px}
+.root{display:grid;grid-template-rows:48px 1fr 34px;height:100vh}
+.hdr{padding:0 18px;border-bottom:1px solid var(--bd);background:var(--surf);display:flex;align-items:center;justify-content:space-between}
+.hdr h1{font-size:14px;color:var(--cy);font-weight:700;letter-spacing:.04em}
+.main{display:grid;grid-template-columns:1fr 280px;overflow:hidden}
+.cv{display:flex;flex-direction:column;gap:7px;padding:9px;overflow:hidden}
+.ctrl{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0}
+.btn{background:transparent;border:1px solid var(--bd);border-radius:5px;color:var(--tx);padding:4px 9px;font-family:var(--fn);font-size:12px;cursor:pointer;transition:background .1s}
+.btn:hover{background:var(--s2)}.btn.go{border-color:var(--cy);color:var(--cy)}.btn.active{border-color:var(--am);color:var(--am)}
+.sl{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--mu)}
+.sl input[type=range]{width:70px;accent-color:var(--cy)}
+.sl span.val{color:var(--cy);font-weight:700;min-width:30px}
+.mode-btn{background:var(--s2);border:1px solid var(--bd);border-radius:5px;color:var(--mu);padding:3px 8px;font-family:var(--fn);font-size:11px;cursor:pointer;transition:all .1s}
+.mode-btn.active{border-color:var(--cy);color:var(--cy);background:rgba(0,200,150,.07)}
+#mc{flex:1;display:block;background:var(--surf);border:1px solid var(--bd);border-radius:8px;min-height:0;width:100%}
+.sb{flex-shrink:0;background:var(--surf);border:1px solid var(--bd);border-radius:6px;padding:5px 11px;display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;transition:background .15s}
+.sl2{font-size:12px;font-weight:700}.sd{font-size:11px;color:var(--mu)}
+.side{border-left:1px solid var(--bd);background:var(--surf);padding:12px 11px;display:flex;flex-direction:column;gap:9px;overflow-y:auto}
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.sc{background:var(--s2);border-radius:6px;padding:7px 9px}
+.sc .lb{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.05em}
+.sc .vl{font-size:14px;font-weight:700;color:var(--cy);margin-top:2px}
+.sc.am .vl{color:var(--am)}.sc.gr .vl{color:var(--gr)}.sc.pu .vl{color:var(--pu)}.sc.bl .vl{color:var(--bl)}
+.eq{background:var(--s2);border-radius:6px;padding:9px 11px;font-size:11px;line-height:1.8}
+.eq .hl{color:var(--cy)}.eq .hl2{color:var(--am)}.eq .hl3{color:var(--gr)}
+.eq .tit{color:var(--mu);font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.leg{background:var(--s2);border-radius:6px;padding:8px 10px}
+.lt2{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.lr{display:flex;align-items:center;gap:7px;margin-bottom:4px;font-size:10px;color:var(--mu)}
+.param{background:var(--s2);border-radius:6px;padding:9px 11px}
+.param .tit{color:var(--mu);font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.pr{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;font-size:11px}
+.pr label{color:var(--mu);min-width:90px}
+.pr input[type=number]{width:64px;background:var(--bg);border:1px solid var(--bd);border-radius:4px;color:var(--tx);padding:3px 6px;font-family:var(--fn);font-size:11px;text-align:right}
+.pr input[type=number]:focus{outline:none;border-color:var(--cy)}
+.pr .unit{color:var(--mu);font-size:10px;min-width:28px;text-align:left;margin-left:4px}
+.bar-wrap{height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin-top:3px}
+.bar{height:100%;border-radius:3px;transition:width .08s}
+.ftr{padding:0 18px;border-top:1px solid var(--bd);background:var(--surf);font-size:11px;color:var(--mu);display:flex;align-items:center;justify-content:space-between}
+</style>
+</head>
+<body>
+<div class="root">
+<div class="hdr">
+  <h1>CoreXY Aandrijving — Live Visualisatie</h1>
+  <span id="hSt" style="font-size:11px;color:var(--mu)">Gereed</span>
+</div>
+<div class="main">
+  <div class="cv">
+    <div class="ctrl">
+      <button class="btn go" id="btnS" onclick="toggleRun()">Start Demo</button>
+      <button class="btn" onclick="doReset()">Reset</button>
+      <button class="mode-btn active" id="mA" onclick="setMode('free')">Vrij bewegen</button>
+      <button class="mode-btn" id="mB" onclick="setMode('demo')">Demo patroon</button>
+      <div class="sl">Afspeelsnelheid
+        <input type="range" min="0.2" max="4" step="0.1" value="1" oninput="setSpd(this.value)">
+        <span class="val" id="spdV">1×</span>
+      </div>
+      <div class="sl" id="manCtrl">
+        X <input type="range" id="tgX" min="0" max="1" step="0.005" value="0.5" oninput="manMove()">
+        Y <input type="range" id="tgY" min="0" max="1" step="0.005" value="0.5" oninput="manMove()">
+        ↗ <input type="range" id="tgD" min="0" max="1" step="0.005" value="0.5" title="Diagonaal ↗ 45° (alleen Motor A)" oninput="diagMove()">
+        ↘ <input type="range" id="tgD2" min="0" max="1" step="0.005" value="0.5" title="Diagonaal ↘ 45° (alleen Motor B)" oninput="diagMove2()">
+        <span style="font-size:10px;color:var(--mu)" title="Hoek van de diagonale beweging">⟳</span><input type="range" id="tgAngle" min="0" max="359" step="1" value="30" title="Vrije hoek — beide motoren actief" oninput="diagAngle(this.value)" style="width:55px"><span class="val" id="angleV" style="font-size:10px;min-width:32px">30°</span>
+        <button class="btn" id="btnAngle" onclick="toggleAngleMove()" style="padding:3px 7px;font-size:11px">▶ Ga</button>
+      </div>
+    </div>
+    <canvas id="mc"></canvas>
+    <div class="sb">
+      <div class="dot" id="sDot"></div>
+      <div class="sl2" id="sLbl">Idle</div>
+      <div class="sd" id="sDet">Wacht op start</div>
+    </div>
+  </div>
+  <div class="side">
+    <div class="sg">
+      <div class="sc"><div class="lb">Gripper X</div><div class="vl" id="vX">0.500</div></div>
+      <div class="sc am"><div class="lb">Gripper Y</div><div class="vl" id="vY">0.500</div></div>
+      <div class="sc gr"><div class="lb">Motor A</div><div class="vl" id="vA">+0.000</div></div>
+      <div class="sc pu"><div class="lb">Motor B</div><div class="vl" id="vB">+0.000</div></div>
+      <div class="sc bl"><div class="lb">Snelheid</div><div class="vl" id="vSpd">0.000</div><div style="font-size:9px;color:var(--mu)">m/s</div></div>
+      <div class="sc am"><div class="lb">Versnelling</div><div class="vl" id="vAcc">0.00</div><div style="font-size:9px;color:var(--mu)">m/s²</div></div>
+    </div>
+    <div class="param">
+      <div class="tit">Bewegingsparameters</div>
+      <div class="pr"><label>Max. snelheid</label><input type="number" id="pVmax" value="1.0" min="0.05" max="5" step="0.05" oninput="updateParams()"><span class="unit">m/s</span></div>
+      <div class="pr"><label>Versnelling</label><input type="number" id="pAcc" value="1.82" min="0.1" max="20" step="0.01" oninput="updateParams()"><span class="unit">m/s²</span></div>
+      <div class="pr"><label>Vertraging</label><input type="number" id="pDec" value="1.82" min="0.1" max="20" step="0.1" oninput="updateParams()"><span class="unit">m/s²</span></div>
+      <div style="font-size:10px;color:var(--mu);margin-top:4px;margin-bottom:2px">Snelheid gripper</div>
+      <div class="bar-wrap"><div class="bar" id="barSpd" style="background:#6aadff;width:0%"></div></div>
+      <div style="font-size:10px;color:var(--mu);margin-top:5px;margin-bottom:2px">Versnelling / remmen</div>
+      <div class="bar-wrap"><div class="bar" id="barAcc" style="background:#f0a500;width:0%"></div></div>
+      <div style="font-size:10px;color:var(--mu);margin-top:8px;margin-bottom:3px;border-top:1px solid var(--bd);padding-top:6px">Motorsnelheid</div>
+      <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+        <span style="font-size:10px;color:#f0a500;min-width:16px">A</span>
+        <div class="bar-wrap" style="flex:1;margin:0"><div class="bar" id="barMA" style="background:#f0a500;width:0%"></div></div>
+        <span style="font-size:10px;color:var(--mu);min-width:38px;text-align:right" id="lblMA">+0.000</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="font-size:10px;color:#6aadff;min-width:16px">B</span>
+        <div class="bar-wrap" style="flex:1;margin:0"><div class="bar" id="barMB" style="background:#6aadff;width:0%"></div></div>
+        <span style="font-size:10px;color:var(--mu);min-width:38px;text-align:right" id="lblMB">+0.000</span>
+      </div>
+    </div>
+    <div class="eq">
+      <div class="tit">Bewegingsvergelijkingen</div>
+      <div><span class="hl">ΔX</span> = ½(<span class="hl3">ΔA</span>+<span class="hl">ΔB</span>)</div>
+      <div><span class="hl2">ΔY</span> = ½(<span class="hl3">ΔA</span>−<span class="hl">ΔB</span>)</div>
+      <div style="margin-top:6px;border-top:1px solid var(--bd);padding-top:6px">
+        <span class="hl3">ΔA</span>=<span class="hl">ΔX</span>+<span class="hl2">ΔY</span> &nbsp;
+        <span class="hl">ΔB</span>=<span class="hl">ΔX</span>−<span class="hl2">ΔY</span>
+      </div>
+      <div style="margin-top:6px;border-top:1px solid var(--bd);padding-top:6px;font-size:10px;color:var(--mu)">
+        A=<span id="eqA" class="hl3">+0.000</span> &nbsp; B=<span id="eqB" class="hl">+0.000</span>
+      </div>
+    </div>
+    <div class="leg">
+      <div class="lt2">Kleurlegenda</div>
+      <div class="lr"><div style="width:22px;height:4px;border-radius:2px;background:#f0a500;flex-shrink:0"></div>Riem A</div>
+      <div class="lr"><div style="width:22px;height:4px;border-radius:2px;background:#6aadff;flex-shrink:0"></div>Riem B</div>
+      <div class="lr"><div style="width:11px;height:11px;border-radius:50%;background:#e05a8a;flex-shrink:0"></div>Poelie</div>
+      <div class="lr"><div style="width:11px;height:11px;border-radius:50%;background:#a78bfa;flex-shrink:0"></div>Snelheidsvector gripper</div>
+    </div>
+  </div>
+</div>
+<div class="ftr">
+  <span>Riem A: gripper topL → TrTL → Motor A → TR → BR → TrBR → gripper botR &nbsp;|&nbsp; Riem B: spiegelbeeldig</span>
+  <span>Afstudeerpresentatie — Broban Stapelmachine</span>
+</div>
+</div>
+<script>
+const mc=document.getElementById('mc'), ctx=mc.getContext('2d');
+let W=0,H=0;
+let P={vmax:1.0,acc:1.82,dec:1.82};
+function updateParams(){
+  P.vmax=parseFloat(document.getElementById('pVmax').value)||1.0;
+  P.acc =parseFloat(document.getElementById('pAcc').value)||1.82;
+  P.dec =parseFloat(document.getElementById('pDec').value)||1.82;
+}
+// Bereik 10%..90% zodat traverse+gripper altijd zichtbaar blijft
+const GX_MIN=0.1, GX_MAX=0.9, GY_MIN=0.1, GY_MAX=0.9;
+let gx=0.5,gy=0.5,tgx=0.5,tgy=0.5,vx=0,vy=0,curSpd=0,curAcc=0;
+let running=false,mode='free',spd=1;
+let curA=0,curB=0,lastA=0,lastB=0,lastTs=null,rafId=null,demoIdx=0;
+let motorRotA=0,motorRotB=0;
+let demoWait=0;          // teller voor wachttijd na bereiken doel
+const DEMO_PAUSE=1.4;    // seconden wachten op doelpositie
+
+const DEMO=[
+  [0.15,0.15],[0.85,0.15],[0.85,0.85],[0.15,0.85],[0.15,0.15],
+  [0.5,0.5],[0.85,0.5],[0.5,0.15],[0.15,0.5],[0.5,0.85],[0.5,0.5]
+];
+
+function resize(){
+  const p=mc.parentElement;
+  W=p.clientWidth-18; H=p.clientHeight-78;
+  mc.width=W; mc.height=H; draw();
+}
+window.addEventListener('resize',resize);
+
+function setMode(m){
+  mode=m;
+  document.getElementById('mA').classList.toggle('active',m==='free');
+  document.getElementById('mB').classList.toggle('active',m==='demo');
+  document.getElementById('manCtrl').style.display=m==='free'?'flex':'none';
+  if(m==='demo')demoIdx=0;
+}
+function setSpd(v){spd=parseFloat(v);document.getElementById('spdV').textContent=v+'×';}
+
+function toggleRun(){
+  running=!running;
+  const b=document.getElementById('btnS');
+  b.textContent=running?'Pauze':'Start Demo';
+  b.className=running?'btn active':'btn go';
+  document.getElementById('hSt').textContent=running?'Actief':'Gereed';
+  if(running){lastTs=null;rafId=requestAnimationFrame(loop);}
+  else{if(rafId){cancelAnimationFrame(rafId);rafId=null;}draw();updateHUD();}
+}
+function doReset(){
+  running=false;if(rafId){cancelAnimationFrame(rafId);rafId=null;}
+  gx=0.5;gy=0.5;tgx=0.5;tgy=0.5;vx=0;vy=0;curSpd=0;curAcc=0;
+  demoIdx=0;demoWait=0;curA=0;curB=0;lastA=0;lastB=0;lastTs=null;
+  motorRotA=0;motorRotB=0;
+  document.getElementById('btnS').textContent='Start Demo';
+  document.getElementById('btnS').className='btn go';
+  document.getElementById('hSt').textContent='Gereed';
+  document.getElementById('tgX').value=0.5;
+  document.getElementById('tgY').value=0.5;
+  document.getElementById('tgD').value=0.5;
+  document.getElementById('tgD2').value=0.5;
+  document.getElementById('tgAngle').value=30;
+  document.getElementById('angleV').textContent='30°';
+  draw();updateHUD();
+}
+function manMove(){
+  tgx=Math.max(0,Math.min(1,parseFloat(document.getElementById('tgX').value)||0.5));
+  tgy=Math.max(0,Math.min(1,parseFloat(document.getElementById('tgY').value)||0.5));
+  if(!rafId){lastTs=null;rafId=requestAnimationFrame(loop);}
+}
+function diagMove(){
+  // Diagonaal ↗: X en Y gelijktijdig (ΔA groot, ΔB=0 — motor A actief)
+  const v=Math.max(0,Math.min(1,parseFloat(document.getElementById('tgD').value)||0.5));
+  tgx=v; tgy=v;
+  document.getElementById('tgX').value=v;
+  document.getElementById('tgY').value=v;
+  if(!rafId){lastTs=null;rafId=requestAnimationFrame(loop);}
+}
+function diagMove2(){
+  // Diagonaal ↘: X omhoog, Y omlaag (ΔB groot, ΔA=0 — motor B actief)
+  const v=Math.max(0,Math.min(1,parseFloat(document.getElementById('tgD2').value)||0.5));
+  tgx=v; tgy=1-v;
+  document.getElementById('tgX').value=v;
+  document.getElementById('tgY').value=(1-v).toFixed(3);
+  if(!rafId){lastTs=null;rafId=requestAnimationFrame(loop);}
+}
+let angleMoving=false;
+function diagAngle(deg){
+  document.getElementById('angleV').textContent=deg+'°';
+}
+function toggleAngleMove(){
+  const deg=parseFloat(document.getElementById('tgAngle').value)||30;
+  const rad=deg*Math.PI/180;
+  // Bereken doelpositie vanuit huidige positie in de opgegeven richting
+  // Beweeg zover mogelijk (naar dichtstbijzijnde rand in die richting)
+  const dx=Math.cos(rad), dy=Math.sin(rad);
+  // Bepaal hoeveel we kunnen in richtng dx,dy binnen 0..1
+  let t=1;
+  if(dx>0) t=Math.min(t,(GX_MAX-gx)/dx);
+  if(dx<0) t=Math.min(t,(gx-GX_MIN)/(-dx));
+  if(dy>0) t=Math.min(t,(GY_MAX-gy)/dy);
+  if(dy<0) t=Math.min(t,(gy-GY_MIN)/(-dy));
+  // Als al bijna aan de rand, beweeg de andere kant op
+  if(t<0.05){
+    t=1;
+    if(-dx>0) t=Math.min(t,(GX_MAX-gx)/(-dx));
+    if(-dx<0) t=Math.min(t,(gx-GX_MIN)/(dx));
+    if(-dy>0) t=Math.min(t,(GY_MAX-gy)/(-dy));
+    if(-dy<0) t=Math.min(t,(gy-GY_MIN)/(dy));
+    tgx=Math.max(GX_MIN,Math.min(GX_MAX,gx-dx*t));
+    tgy=Math.max(GY_MIN,Math.min(GY_MAX,gy-dy*t));
+  } else {
+    tgx=Math.max(GX_MIN,Math.min(GX_MAX,gx+dx*t));
+    tgy=Math.max(GY_MIN,Math.min(GY_MAX,gy+dy*t));
+  }
+  document.getElementById('tgX').value=tgx.toFixed(3);
+  document.getElementById('tgY').value=tgy.toFixed(3);
+  if(!rafId){lastTs=null;rafId=requestAnimationFrame(loop);}
+}
+function loop(ts){
+  if(!lastTs)lastTs=ts;
+  const dt=Math.min((ts-lastTs)/1000,0.05)*spd;
+  lastTs=ts;
+  const ddx=tgx-gx,ddy=tgy-gy;
+  const stillMoving=Math.sqrt(ddx*ddx+ddy*ddy)>0.003||Math.sqrt(vx*vx+vy*vy)>0.001;
+  if(running||stillMoving){
+    update(dt);draw();updateHUD();
+    rafId=requestAnimationFrame(loop);
+  } else {
+    gx=tgx;gy=tgy;vx=0;vy=0;curA=gx+gy;curB=gx-gy;
+    draw();updateHUD();
+    rafId=null;lastTs=null;
+  }
+}
+function update(dt){
+  if(mode==='demo'){
+    const t=DEMO[demoIdx];
+    const dx=t[0]-gx,dy=t[1]-gy,d=Math.sqrt(dx*dx+dy*dy);
+    if(d<0.007&&curSpd<0.01){
+      // Op doel: wacht even
+      demoWait+=dt;
+      if(demoWait>=DEMO_PAUSE){
+        demoWait=0;
+        demoIdx=(demoIdx+1)%DEMO.length;
+      }
+    } else {
+      demoWait=0;
+    }
+    tgx=DEMO[demoIdx][0];
+    tgy=DEMO[demoIdx][1];
+  }
+
+  const dx=tgx-gx,dy=tgy-gy,dist=Math.sqrt(dx*dx+dy*dy);
+  const prevSpd=Math.sqrt(vx*vx+vy*vy);
+  if(dist<0.004){
+    const ds=P.dec*dt;
+    if(prevSpd<ds){vx=0;vy=0;curAcc=0;}
+    else{const f=1-ds/prevSpd;vx*=f;vy*=f;curAcc=-P.dec;}
+  } else {
+    const ux=dx/dist,uy=dy/dist;
+    const sd=prevSpd*prevSpd/(2*P.dec+0.001);
+    const ts2=sd>=dist*0.95?Math.sqrt(Math.max(0,2*P.dec*dist)):P.vmax;
+    let dvx=ux*Math.min(ts2,P.vmax)-vx,dvy=uy*Math.min(ts2,P.vmax)-vy;
+    const dm=Math.sqrt(dvx*dvx+dvy*dvy),md=P.acc*dt;
+    if(dm>md){const f=md/dm;dvx*=f;dvy*=f;}
+    vx+=dvx;vy+=dvy;
+    curAcc=(Math.sqrt(vx*vx+vy*vy)-prevSpd)/Math.max(dt,0.001);
+  }
+  curSpd=Math.sqrt(vx*vx+vy*vy);
+
+  // Begrens op 10%..90% bereik
+  gx=Math.max(GX_MIN,Math.min(GX_MAX,gx+vx*dt));
+  gy=Math.max(GY_MIN,Math.min(GY_MAX,gy+vy*dt));
+
+  // Motorrotatie: ΔA = ΔX + ΔY,  ΔB = ΔX - ΔY
+  // Gebaseerd op cumulatieve positie (omgekeerde kinematica)
+  const newA=gx+gy, newB=gx-gy;
+  // Rotatie proportioneel aan delta, richting correct per vergelijking
+  motorRotA+=(newA-curA)*30;
+  motorRotB+=(newB-curB)*30;
+  curA=newA; curB=newB;
+}
+
+/* ── Layout ── */
+// grSz wordt dynamisch berekend zodat gripper breed genoeg is voor verticale riemen
+const CONST={pr:9,motW:68,motH:46,pad:34,trW:120,inX:18,inY:24,grMar:14,mpR:13};
+
+function getLayout(){
+  const {pr,motW,motH,pad,trW,inX,inY,grMar,mpR}=CONST;
+  const motorAreaW=motW+mpR*2+20;
+  const fx=motorAreaW,fy=pad;
+  const fw=W-fx-pad,fh=H-pad*2;
+  const TL={x:fx,    y:fy};
+  const TR={x:fx+fw, y:fy};
+  const BL={x:fx,    y:fy+fh};
+  const BR={x:fx+fw, y:fy+fh};
+  const trX=fx+(GX_MIN+(Math.max(0,Math.min(1,gx)))*(GX_MAX-GX_MIN))*(fw-trW);
+  const trY=fy,trH=fh;
+  const TrTL={x:trX+inX,     y:trY+inY};
+  const TrTR={x:trX+trW-inX, y:trY+inY};
+  const TrBL={x:trX+inX,     y:trY+trH-inY};
+  const TrBR={x:trX+trW-inX, y:trY+trH-inY};
+
+  // Gripper breder dan poelie-afstand; koppelpunten exact op poelie-x → riemen verticaal
+  const poelieSpan=TrTR.x-TrTL.x;
+  const grExtra=20;            // gripper steekt grExtra px buiten de poelies uit
+  const grW=poelieSpan+2*grExtra;
+  const grH=grW;               // vierkant
+  const grTop=TrTL.y+grMar;
+  const grBot=TrBL.y-grMar-grH;
+  const grTravel=Math.max(1,grBot-grTop);
+  const gyMapped=GY_MIN+(Math.max(0,Math.min(1,gy)))*(GY_MAX-GY_MIN);
+  const grY=grTop+gyMapped*grTravel;
+  const grX=TrTL.x-grExtra;
+  const grCx=grX+grW/2,grCy=grY+grH/2;
+
+  const MA_P={x:TL.x,y:TL.y};
+  const MB_P={x:BL.x,y:BL.y};
+  const MA_blok={x:fx-mpR-motW-8,y:TL.y-motH/2};
+  const MB_blok={x:fx-mpR-motW-8,y:BL.y-motH/2};
+
+  // Koppelpunten EXACT op poelie-x → riemen lopen strikt verticaal
+  const GrA_topL={x:TrTL.x, y:grY};
+  const GrA_botR={x:TrBR.x, y:grY+grH};
+  const GrB_topR={x:TrTR.x, y:grY};
+  const GrB_botL={x:TrBL.x, y:grY+grH};
+
+  return{fx,fy,fw,fh,pr,motW,motH,mpR,trW,trH:fh,inX,inY,grW,grH,grMar,
+         TL,TR,BL,BR,MA_P,MB_P,MA_blok,MB_blok,
+         trX,trY,TrTL,TrTR,TrBL,TrBR,
+         grX,grY,grW,grH,grCx,grCy,
+         GrA_topL,GrA_botR,GrB_topR,GrB_botL};
+}
+
+/* Teken riem als polyline door een lijst punten — rechte segmenten */
+function belt(pts, col, lw){
+  if(pts.length<2)return;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x,pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y);
+  ctx.strokeStyle=col;ctx.lineWidth=lw||2.4;
+  ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.stroke();
+}
+
+function poelie(p,r,col){
+  ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
+  ctx.fillStyle='#1a2130';ctx.fill();
+  ctx.strokeStyle=col;ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(p.x,p.y,r*0.35,0,Math.PI*2);
+  ctx.fillStyle=col;ctx.fill();
+}
+function motorPoelie(p,r,col,rot){
+  ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
+  ctx.fillStyle='#141e28';ctx.fill();
+  ctx.strokeStyle=col;ctx.lineWidth=2.5;ctx.stroke();
+  for(let i=0;i<3;i++){
+    const a=rot+i*Math.PI*2/3;
+    ctx.beginPath();
+    ctx.moveTo(p.x+Math.cos(a)*r*0.22,p.y+Math.sin(a)*r*0.22);
+    ctx.lineTo(p.x+Math.cos(a)*(r-2), p.y+Math.sin(a)*(r-2));
+    ctx.strokeStyle=col;ctx.lineWidth=2;ctx.stroke();
+  }
+  ctx.beginPath();ctx.arc(p.x,p.y,r*0.2,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+}
+function seg(x1,y1,x2,y2,col,lw,dash){
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);
+  ctx.strokeStyle=col;ctx.lineWidth=lw||2;
+  ctx.setLineDash(dash||[]);ctx.lineCap='round';ctx.stroke();ctx.setLineDash([]);
+}
+function arrowTip(x,y,angle,col,s){
+  ctx.save();ctx.translate(x,y);ctx.rotate(angle);
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(-(s||5),(s||5)*-.55);ctx.lineTo(-(s||5),(s||5)*.55);
+  ctx.closePath();ctx.fillStyle=col;ctx.fill();ctx.restore();
+}
+let L_cur=null;
+function drawMotorBlok(blok,poel,label,rimCol){
+  const {x,y}=blok,mw=L_cur.motW,mh=L_cur.motH;
+  ctx.fillStyle='#0e1520';
+  ctx.beginPath();ctx.roundRect(x,y,mw,mh,7);ctx.fill();
+  ctx.strokeStyle=rimCol;ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.roundRect(x,y,mw,mh,7);ctx.stroke();
+  ctx.fillStyle=rimCol;
+  ctx.beginPath();ctx.roundRect(x,y,6,mh,{upperLeft:7,lowerLeft:7,upperRight:0,lowerRight:0});ctx.fill();
+  ctx.fillStyle='#ffffff';ctx.font='bold 12px monospace';ctx.textAlign='left';
+  ctx.fillText(label,x+12,y+mh/2+5);
+  for(let i=1;i<=4;i++) seg(x+mw-20,y+i*(mh/5),x+mw-8,y+i*(mh/5),'rgba(255,255,255,0.09)',1);
+  seg(x+mw,y+mh/2,poel.x,poel.y,rimCol,3);
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0b0f14';ctx.fillRect(0,0,W,H);
+  if(W<80||H<80)return;
+  const L=getLayout();L_cur=L;
+  const rA='#f0a500',rB='#6aadff',lw=2.5;
+  const {pr,mpR}=L;
+
+  /* Frame */
+  ctx.strokeStyle='#1e2a38';ctx.lineWidth=2.5;ctx.strokeRect(L.fx,L.fy,L.fw,L.fh);
+  ctx.fillStyle='#252e3a';ctx.font='10px monospace';ctx.textAlign='center';
+  ctx.fillText('Frame',L.fx+L.fw/2,L.fy-10);
+  for(let i=1;i<4;i++){
+    seg(L.fx+i/4*L.fw,L.fy,L.fx+i/4*L.fw,L.fy+L.fh,'#141c26',1,[2,8]);
+    seg(L.fx,L.fy+i/4*L.fh,L.fx+L.fw,L.fy+i/4*L.fh,'#141c26',1,[2,8]);
+  }
+
+  /* Geen trail, geen doelpositie — alleen de huidige toestand tonen */
+
+  /* ── RIEM A (oranje) — zonder het gedeelde rechtse segment TR→BR */
+  belt([L.GrA_topL, L.TrTL, L.MA_P, L.TR], rA, lw);
+  belt([L.BR, L.TrBR, L.GrA_botR], rA, lw);
+
+  /* ── RIEM B (blauw) — zonder het gedeelde rechtse segment TR→BR */
+  belt([L.GrB_topR, L.TrTR, L.TR], rB, lw);
+  belt([L.BR, L.BL, L.MB_P, L.TrBL, L.GrB_botL], rB, lw);
+
+  /* ── Gestreept segment rechterkant frame: TR→BR (beide riemen lopen hier) ── */
+  {
+    const x0=L.TR.x, y0=L.TR.y, y1=L.BR.y;
+    const segH=10; // streeplengte
+    let y=y0, tog=0;
+    ctx.lineWidth=lw+0.5; ctx.lineCap='butt';
+    while(y<y1){
+      const yn=Math.min(y+segH,y1);
+      ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x0,yn);
+      ctx.strokeStyle=tog%2===0?rA:rB; ctx.stroke();
+      y=yn; tog++;
+    }
+    ctx.lineCap='round';
+  }
+
+  /* Traverse */
+  ctx.fillStyle='rgba(255,255,255,0.02)';ctx.fillRect(L.trX,L.trY,L.trW,L.trH);
+  ctx.strokeStyle='#5a4810';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.roundRect(L.trX,L.trY,L.trW,L.trH,3);ctx.stroke();
+  ctx.save();ctx.translate(L.trX-10,L.trY+L.trH/2);ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='#5a4810';ctx.font='bold 10px monospace';ctx.textAlign='center';
+  ctx.fillText('Traverse (X)',0,0);ctx.restore();
+
+  /* Traverse poelies (roze) */
+  poelie(L.TrTL,pr,'#e05a8a');poelie(L.TrTR,pr,'#e05a8a');
+  poelie(L.TrBL,pr,'#e05a8a');poelie(L.TrBR,pr,'#e05a8a');
+
+  /* Frame hoekpoelies (roze) */
+  poelie(L.TL,pr,'#e05a8a');poelie(L.TR,pr,'#e05a8a');
+  poelie(L.BL,pr,'#e05a8a');poelie(L.BR,pr,'#e05a8a');
+
+  /* Motoren */
+  drawMotorBlok(L.MA_blok,L.MA_P,'Motor A',rA);
+  drawMotorBlok(L.MB_blok,L.MB_P,'Motor B',rB);
+
+  /* Motorpoelies (draaiend) */
+  motorPoelie(L.MA_P,mpR,rA,motorRotA);
+  motorPoelie(L.MB_P,mpR,rB,motorRotB);
+
+  /* Gripper */
+  ctx.save();ctx.shadowColor='rgba(0,200,150,0.5)';ctx.shadowBlur=14;
+  ctx.fillStyle='#152318';
+  ctx.beginPath();ctx.roundRect(L.grX,L.grY,L.grW,L.grH,5);ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle='#00c896';ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.roundRect(L.grX,L.grY,L.grW,L.grH,5);ctx.stroke();
+  seg(L.grX+8,L.grCy,L.grX+L.grW-8,L.grCy,'rgba(0,200,150,0.12)',1);
+  seg(L.grCx,L.grY+8,L.grCx,L.grY+L.grH-8,'rgba(0,200,150,0.12)',1);
+  ctx.beginPath();ctx.arc(L.GrA_topL.x,L.GrA_topL.y,5,0,Math.PI*2);ctx.fillStyle=rA;ctx.fill();
+  ctx.beginPath();ctx.arc(L.GrA_botR.x,L.GrA_botR.y,5,0,Math.PI*2);ctx.fillStyle=rA;ctx.fill();
+  ctx.beginPath();ctx.arc(L.GrB_topR.x,L.GrB_topR.y,5,0,Math.PI*2);ctx.fillStyle=rB;ctx.fill();
+  ctx.beginPath();ctx.arc(L.GrB_botL.x,L.GrB_botL.y,5,0,Math.PI*2);ctx.fillStyle=rB;ctx.fill();
+  ctx.fillStyle='#00c896';ctx.font='bold 10px monospace';ctx.textAlign='center';
+  ctx.fillText('GRIPPER',L.grCx,L.grCy+5);
+
+  /* Snelheidsvector */
+  if(curSpd>0.01){
+    const sc=32/Math.max(P.vmax,0.1);
+    const vex=L.grCx+vx*sc,vey=L.grCy+vy*sc;
+    ctx.beginPath();ctx.moveTo(L.grCx,L.grCy);ctx.lineTo(vex,vey);
+    ctx.strokeStyle='#a78bfa';ctx.lineWidth=2.2;ctx.stroke();
+    arrowTip(vex,vey,Math.atan2(vy,vx),'#a78bfa',5);
+  }
+
+  /* X/Y pijlen */
+  const al=18,xp=L.trX+L.trW+8;
+  seg(xp,L.grCy,xp+al,L.grCy,rA,1.5);arrowTip(xp+al,L.grCy,0,rA,4);
+  ctx.fillStyle=rA;ctx.font='bold 10px monospace';ctx.textAlign='left';ctx.fillText('X',xp+al+5,L.grCy+4);
+  seg(L.grCx,L.grY+L.grH+5,L.grCx,L.grY+L.grH+23,'#00c896',1.5);
+  arrowTip(L.grCx,L.grY+L.grH+23,Math.PI/2,'#00c896',4);
+  ctx.fillStyle='#00c896';ctx.font='bold 10px monospace';ctx.textAlign='center';
+  ctx.fillText('Y',L.grCx,L.grY+L.grH+37);
+
+  /* Coördinaten */
+  ctx.fillStyle='rgba(13,25,32,0.9)';ctx.fillRect(L.trX+L.trW/2-30,L.trY-22,60,16);
+  ctx.fillStyle='#dde4ee';ctx.font='10px monospace';ctx.textAlign='center';
+  ctx.fillText('('+gx.toFixed(2)+', '+gy.toFixed(2)+')',L.trX+L.trW/2,L.trY-10);
+
+  /* ── Tekst-overlay: legt uit wat er happens ── */
+  drawOverlay(L);
+}
+
+/* ── Tekst-overlay: legt CoreXY principe live uit ── */
+function drawOverlay(L){
+  // Bepaal bewegingstype op basis van vx/vy
+  const absVx=Math.abs(vx), absVy=Math.abs(vy);
+  const moving=curSpd>0.008;
+  const pureX=moving && absVx>0.01 && absVy<absVx*0.15;
+  const pureY=moving && absVy>0.01 && absVx<absVy*0.15;
+  const diag= moving && !pureX && !pureY;
+
+  let line1='', line2='', col1='#6b7889', col2='#6b7889';
+
+  if(pureX){
+    line1='X-beweging: beide motoren zelfde richting';
+    line2=vx>0
+      ? 'Motor A ↻  Motor B ↻  →  Traverse naar rechts'
+      : 'Motor A ↺  Motor B ↺  →  Traverse naar links';
+    col1='#f0a500'; col2='#dde4ee';
+  } else if(pureY){
+    line1='Y-beweging: motoren tegengesteld';
+    line2=vy>0
+      ? 'Motor A ↻  Motor B ↺  →  Gripper omlaag'
+      : 'Motor A ↺  Motor B ↻  →  Gripper omhoog';
+    col1='#6aadff'; col2='#dde4ee';
+  } else if(diag){
+    const dA=vx+vy, dB=vx-vy;
+    const aStil=Math.abs(dA)<Math.abs(dB)*0.12;
+    const bStil=Math.abs(dB)<Math.abs(dA)*0.12;
+    const hoek=Math.round(Math.atan2(vy,vx)*180/Math.PI);
+    if(bStil){
+      line1='45°↗ diagonaal: Motor A actief — Motor B stilstaand (ΔB=0)';
+    } else if(aStil){
+      line1='45°↘ diagonaal: Motor B actief — Motor A stilstaand (ΔA=0)';
+    } else {
+      const ratio=Math.abs(dA)>0.001?(Math.abs(dB)/Math.abs(dA)).toFixed(2):'∞';
+      line1=`${hoek}° diagonaal: beide motoren actief (snelheidsverhouding B/A=${ratio})`;
+    }
+    line2=`Motor A: ${dA>=0?'+':''}${dA.toFixed(3)}  Motor B: ${dB>=0?'+':''}${dB.toFixed(3)}`;
+    col1='#a78bfa'; col2='#dde4ee';
+  } else if(!moving && (running||rafId)){
+    line1='Stilstand — gripper op positie';
+    line2='Motoren geblokkeerd, positie vastgehouden';
+    col1='#3fb950'; col2='#6b7889';
+  }
+
+  if(!line1) return;
+
+  // Overlay: linksbovenhoek van het frame, altijd binnen kader
+  const ovPad=8;
+  ctx.font='bold 11px monospace';
+  const w1=ctx.measureText(line1).width;
+  ctx.font='10px monospace';
+  const w2=ctx.measureText(line2).width;
+  const bw=Math.min(Math.max(w1,w2)+ovPad*2, L.fw-20);
+  const bh=40;
+  const ox=L.fx+10;
+  const oy=L.fy+10;
+
+  ctx.fillStyle='rgba(11,15,20,0.88)';
+  ctx.beginPath();ctx.roundRect(ox,oy,bw,bh,5);ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.roundRect(ox,oy,bw,bh,5);ctx.stroke();
+
+  // Knip tekst zodat deze nooit buiten het vak loopt
+  ctx.save();ctx.beginPath();ctx.rect(ox,oy,bw,bh);ctx.clip();
+  ctx.fillStyle=col1;ctx.font='bold 11px monospace';ctx.textAlign='left';
+  ctx.fillText(line1,ox+ovPad,oy+18);
+  ctx.fillStyle=col2;ctx.font='10px monospace';
+  ctx.fillText(line2,ox+ovPad,oy+33);
+  ctx.restore();
+}
+
+function updateHUD(){
+  document.getElementById('vX').textContent=gx.toFixed(3);
+  document.getElementById('vY').textContent=gy.toFixed(3);
+  document.getElementById('vA').textContent=(curA>=0?'+':'')+curA.toFixed(3);
+  document.getElementById('vB').textContent=(curB>=0?'+':'')+curB.toFixed(3);
+  document.getElementById('vSpd').textContent=curSpd.toFixed(3);
+  document.getElementById('vAcc').textContent=curAcc.toFixed(2);
+  document.getElementById('eqA').textContent=(curA>=0?'+':'')+curA.toFixed(3);
+  document.getElementById('eqB').textContent=(curB>=0?'+':'')+curB.toFixed(3);
+  const sp=Math.min(100,curSpd/Math.max(P.vmax,0.01)*100);
+  document.getElementById('barSpd').style.width=sp+'%';
+  const ap=Math.min(100,Math.abs(curAcc)/Math.max(P.acc,P.dec,0.1)*100);
+  const ab=document.getElementById('barAcc');
+  ab.style.width=ap+'%';ab.style.background=curAcc>=0?'#f0a500':'#6aadff';
+  let lbl='Idle',det='Wacht op start',col='#6b7889';
+  if(running){
+    if(demoWait>0){lbl='Wacht';det=`Volgende positie in ${(DEMO_PAUSE-demoWait).toFixed(1)}s`;col='#3fb950';}
+    else if(curSpd<0.005){lbl='Stil';det='Op positie';col='#6b7889';}
+    else if(curAcc>0.05){lbl='Accelereren';det=`v=${curSpd.toFixed(2)} · a=+${curAcc.toFixed(1)} m/s²`;col='#f0a500';}
+    else if(curAcc<-0.05){lbl='Remmen';det=`v=${curSpd.toFixed(2)} · a=${curAcc.toFixed(1)} m/s²`;col='#6aadff';}
+    else{lbl='Constant';det=`v=${curSpd.toFixed(2)} m/s`;col='#00c896';}
+  } else if(curSpd>0.005){
+    if(curAcc>0.05){lbl='Accelereren';det=`v=${curSpd.toFixed(2)} m/s`;col='#f0a500';}
+    else if(curAcc<-0.05){lbl='Remmen';det=`v=${curSpd.toFixed(2)} m/s`;col='#6aadff';}
+    else{lbl='Beweegt';det=`v=${curSpd.toFixed(2)} m/s`;col='#00c896';}
+  }
+  document.getElementById('sDot').style.background=col;
+  document.getElementById('sLbl').textContent=lbl;
+  document.getElementById('sDet').textContent=det;
+
+  // Motorsnelheid: vA = vx+vy,  vB = vx-vy  (omgekeerde kinematica)
+  const vMotA=vx+vy, vMotB=vx-vy;
+  const maxMotSpd=Math.max(Math.abs(vMotA),Math.abs(vMotB),P.vmax*1.5,0.01);
+  document.getElementById('barMA').style.width=Math.min(100,Math.abs(vMotA)/maxMotSpd*100)+'%';
+  document.getElementById('barMB').style.width=Math.min(100,Math.abs(vMotB)/maxMotSpd*100)+'%';
+  document.getElementById('barMA').style.background=vMotA>=0?'#f0a500':'#c07000';
+  document.getElementById('barMB').style.background=vMotB>=0?'#6aadff':'#2060a0';
+  document.getElementById('lblMA').textContent=(vMotA>=0?'+':'')+vMotA.toFixed(3);
+  document.getElementById('lblMB').textContent=(vMotB>=0?'+':'')+vMotB.toFixed(3);
+
+  lastA=curA;lastB=curB;
+}
+
+resize();updateHUD();
+</script>
+</body>
+</html>
